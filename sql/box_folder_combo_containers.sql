@@ -1,4 +1,4 @@
---
+-- Containers with indicators suspected of being merged box:folder pairs
 SELECT tc.id AS container_record_id,
        concat('/top_containers/', tc.id) as container_url,
        concat('/repositories/', tc.repo_id, '/top_containers/', tc.id) as api_url,
@@ -47,5 +47,5 @@ LEFT JOIN location l ON tch.location_id = l.id
 LEFT JOIN location_profile_rlshp lpr ON l.id = lpr.location_id
 LEFT JOIN location_profile lp ON lpr.location_profile_id = lp.id
 LEFT JOIN enumeration_value ev3 ON lp.dimension_units_id = ev3.id
-WHERE tcl.id IS NULL
+WHERE tc.indicator LIKE '%:%'
 ORDER BY location_record_id, container_record_id

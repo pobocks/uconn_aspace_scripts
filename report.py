@@ -21,11 +21,22 @@ ap.add_argument('--reports',
                 required=False,
                 choices=choices,
                 help="Which reports to run, leave empty for all")
+ap.add_argument('--dev-fields', '-d', action='store_true', help="Include fields used for development that aren't useful to staff")
+
+dev_fields = {'api_url'}
+def remove_dev_fields(row):
+    for field in dev_fields:
+        try:
+            row.pop(field)
+        except KeyError:
+            pass
+    return row
 
 def main():
     args = ap.parse_args()
     conn = pymysql.connect(db='uconn', user=input('DB Username?: '), password=getpass("DB Password?: "), cursorclass=pymysql.cursors.DictCursor)
     log = get_logger('uconn_report')
+
     makedirs('./output', exist_ok=True)
     for report in args.reports:
         with conn.cursor() as cur,\
@@ -33,10 +44,13 @@ def main():
             log.info('executing report {report}')
             cur.execute(reports[report])
             if first := cur.fetchone():
-                writer = DictWriter(f, fieldnames=list(first.keys()), dialect='excel-tab')
+                fields = list(first.keys())
+                if not args.dev_fields:
+                    fields.remove('api_url')
+                writer = DictWriter(f, fieldnames=fields, dialect='excel-tab')
                 writer.writeheader()
-                writer.writerow(first)
-                writer.writerows(cur.fetchall())
+                writer.writerow(first if args.dev_fields else remove_dev_fields(first))
+                writer.writerows(cur.fetchall() if args.dev_fields else map(remove_dev_fields, cur.fetchall()))
                 log.info(f'report {report} completed')
             else:
                 log.info('report empty')
