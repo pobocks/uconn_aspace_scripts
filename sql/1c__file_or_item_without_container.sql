@@ -1,7 +1,7 @@
 -- Archival Objects at "file" or "item" level without containers
 
 SELECT ao.id as archival_object_record_id,
-       concat('/resources/', ao.root_record_id, '#tree::archival_object_', ao.id) as archival_object_url,
+       concat('https://archivessearch.lib.uconn.edu/staff/resources/', ao.root_record_id, '#tree::archival_object_', ao.id) as archival_object_url,
        concat('/repositories/', ao.repo_id, '/archival_objects/', ao.id) as api_url,
        ao.component_id,
        ao.ref_id,

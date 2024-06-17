@@ -1,6 +1,6 @@
 --
 SELECT tc.id AS container_record_id,
-       concat('/top_containers/', tc.id) as container_url,
+       concat('https://archivessearch.lib.uconn.edu/staff/top_containers/', tc.id) as container_url,
        concat('/repositories/', tc.repo_id, '/top_containers/', tc.id) as api_url,
        ev1.value AS container_type,
        tc.indicator AS container_indicator,
