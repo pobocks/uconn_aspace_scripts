@@ -41,11 +41,11 @@ def main():
     for report in args.reports:
         with conn.cursor() as cur,\
              open(f'./output/{report}.tsv', 'w') as f:
-            log.info('executing report {report}')
+            log.info(f'executing report {report}')
             cur.execute(reports[report])
             if first := cur.fetchone():
                 fields = list(first.keys())
-                if not args.dev_fields:
+                if not args.dev_fields and 'api_url' in fields:
                     fields.remove('api_url')
                 writer = DictWriter(f, fieldnames=fields, dialect='excel-tab')
                 writer.writeheader()

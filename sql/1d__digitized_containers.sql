@@ -1,7 +1,7 @@
 -- Containers with type "digitized" which, well, shouldn't ought to exist :-)
 SELECT ao.id as archival_object_id,
        ao.title as archival_object_title,
-       concat('https://archivessearch.lib.uconn.edu/staff/archival_objects/', ao.id) as archival_object_url,
+       concat('https://archivessearch.lib.uconn.edu/staff/resources/', ao.root_record_id, '#tree::archival_object_', ao.id) as archival_object_url,
        concat('/repositories/', ao.repo_id, '/archival_objects/', ao.id) as api_url,
        tc.id AS container_record_id,
        concat('https://archivessearch.lib.uconn.edu/staff/top_containers/', tc.id) as container_url,
