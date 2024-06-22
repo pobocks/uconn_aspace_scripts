@@ -9,7 +9,7 @@ from os.path import basename
 import pymysql
 
 reports = {}
-for path in glob('./sql/*.sql'):
+for path in sorted(glob('./sql/*.sql')):
     with(open(path) as f):
         reports[basename(path).removesuffix('.sql')] = f.read().strip()
 choices = list(reports.keys())
