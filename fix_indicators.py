@@ -8,12 +8,11 @@ import csv
 import pymysql
 
 ap = ArgumentParser()
-ap.add_argument('--dry-run', '-n', action='store_true', help='make no changes but print what would happen')
-ap.add_argument('--host', '-H', help="mysql host to run against", default='localhost')
-
+ap.add_argument('--host', '-H', help='mysql host', default='localhost')
+ap.add_argument('--port', '-p', help='mysql port', default=3306)
 if __name__ == '__main__':
     args = ap.parse_args()
-    conn = pymysql.connect(host=args.host, db='uconn', user=input('DB Username?: '), password=getpass("DB Password?: "), cursorclass=pymysql.cursors.DictCursor)
+    conn = pymysql.connect(host=args.host, db='uconn', port=args.port, user=input('DB Username?: '), password=getpass("DB Password?: "), cursorclass=pymysql.cursors.DictCursor)
     log = get_logger('uconn_fix_indicators')
 
     top_containers_to_fix = set()
