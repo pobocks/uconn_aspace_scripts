@@ -7,6 +7,7 @@ FROM (SELECT tc.id AS container_record_id,
 
        concat('https://archivessearch.lib.uconn.edu/staff/top_containers/', tc.id) as container_url,
        concat('/repositories/', tc.repo_id, '/top_containers/', tc.id) as api_url,
+       ao.id AS archival_object_id,
        ev1.value AS container_type,
        tc.type_id AS container_type_id,
        tc.indicator AS container_indicator,
