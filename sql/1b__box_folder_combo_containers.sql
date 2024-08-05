@@ -1,8 +1,8 @@
 -- Containers with indicators suspected of being merged box:folder pairs
 SELECT main.*,
-       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.id, candidate_ao.id) SEPARATOR ', ') AS candidate_container_ids,
-       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.barcode, candidate_ao.barcode) SEPARATOR ', ') AS candidate_container_barcodes,
-       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.indicator, candidate_ao.indicator) SEPARATOR ', ') AS candidate_indicator
+       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.id, candidate_ao.id) SEPARATOR ',') AS candidate_container_ids,
+       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.barcode, candidate_ao.barcode) SEPARATOR ',') AS candidate_container_barcodes,
+       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.indicator, candidate_ao.indicator) SEPARATOR ',') AS candidate_indicator
 FROM (SELECT tc.id AS container_record_id,
 
        concat('https://archivessearch.lib.uconn.edu/staff/top_containers/', tc.id) as container_url,
