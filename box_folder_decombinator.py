@@ -20,6 +20,23 @@ def fetch_existing_aos(container_id):
 
     return {container_id:json.loads(result['json']) for result in client.get_paged('/search', params={'q': f'top_container_uri_u_sstr:"{uri}"', 'type': ['archival_object'], 'fields': ['json']})}
 
+def validate_instance(instance_json, tc_uri_to_exclude=None):
+    'prevents instances attached to existing record OR messed up invalid instances from getting attached'
+    # instance is marked for exclusion
+    if instance_json.get('sub_container', {}).get('top_container', {}).get('ref', None) == tc_uri_to_exclude:
+        log.debug('excluding top container uri', tc_uri=tc_uri_to_exclude, json=instance_json)
+        return False
+    # instance is not a digital_object and is missing sub_container
+    elif instance_json['instance_type'] != 'digital_object' and not instance_json.get('sub_container', None):
+        log.warning('rejecting invalid instance', json=instance_json)
+        return False
+    # instance is a digital_object but is missing the digital_object field (not seen in production but theoretically possible and will fail)
+    elif instance_json['instance_type'] == 'digital_object' and not instance_json.get('digital_object', None):
+        log.warning('rejecting invalid instance', json=instance_json)
+        return False
+    else:
+        return True
+
 if __name__ == '__main__':
     args = ap.parse_args()
     log = get_logger('uconn_box_folder_decombinator')
@@ -40,7 +57,9 @@ if __name__ == '__main__':
                     continue
 
                 group_ao_ids = {row['archival_object_id'] for row in group if row.get('archival_object_id', False)}
+                group_resource_ids = {row['resource_id'] for row in group if not row.get('archival_object_id', False)}
                 group_ao_jsons = {ao_id:client.get(f'/repositories/2/archival_objects/{ao_id}').json() for ao_id in group_ao_ids}
+                group_resource_jsons = {r_id:client.get(f'/repositories/2/resources/{r_id}').json() for r_id in group_resource_ids}
                 barcodes = {row['container_barcode'] for row in group if row['container_barcode']}
                 locations = {row['location_record_id'] for row in group if row['location_record_id']}
                 candidate_ids = key[1].split(',') if key[1] else []
@@ -64,14 +83,16 @@ if __name__ == '__main__':
 
                     for cand_id, ao in victim_aos.items():
                         fresh_ao = client.get(ao['uri']).json()
-                        cand_json = client.get(f'/repositories/2/top_containers/{cand_id}').json()
+                        cand_uri = f'/repositories/2/top_containers/{cand_id}'
+                        cand_json = client.get(cand_uri
+                                               ).json()
 
                         replacement_instances = []
                         for instance in fresh_ao.get('instances', []):
                             # not sub_container or not our boy, leave alone
-                            if 'sub_container' not in instance or instance['sub_container']['top_container']['ref'].split('/')[-1] != cand_id:
+                            if validate_instance(instance, cand_uri):
                                 replacement_instances.append(instance)
-                            else:
+                            elif instance.get('sub_container', {}).get('top_container', {}).get('ref', None) == cand_uri:
                                 instance['sub_container']['top_container'] = merge_into_ref
                                 if cand_barcode := cand_json.get('barcode', None):
                                     instance['barcode_2'] = cand_barcode
@@ -82,7 +103,7 @@ if __name__ == '__main__':
                         if not args.dry_run:
                             result = client.post(fresh_ao['uri'], json=fresh_ao)
                             if result.status_code != 200:
-                                log.error('error merging candidates',  candidate_uri=merge_into_ref['ref'], victims=list(victim_aos.keys()), status_code=result.status_code, body=result.text)
+                                log.error('error merging candidates',  candidate_uri=merge_into_ref['ref'], victims=list(victim_aos.keys()), status_code=result.status_code, error=result.text)
                             else:
                                 log.info('merged multiple candidates into one', candidate_uri=merge_into_ref['ref'], victims=list(victim_aos.keys()))
 
@@ -90,7 +111,7 @@ if __name__ == '__main__':
                 # one candidate, fetch any existing sub containers and add these guys
                 elif number_of_candidates == 1:
                     log.info('merging into existing container', key=key)
-                    aos_by_candidate = fetch_existing_aos(candidate_ids[0])
+                    aos_by_candidate.update(fetch_existing_aos(candidate_ids[0]))
 
                     top_container_uri = f'/repositories/2/top_containers/{candidate_ids[0]}'
                     merge_into_ref = {'ref': top_container_uri}
@@ -105,10 +126,13 @@ if __name__ == '__main__':
                     if not args.dry_run:
                         result = client.post('repositories/2/top_containers', json=top_container_to_create)
                         if result.status_code != 200:
-                            log.error('error creating top container', top_container_indicator=top_container_indicator)
+                            log.error('error creating top container', top_container_indicator=top_container_indicator, error=result.text)
                         else:
                             top_container_uri = result.json()['uri']
                             merge_into_ref = {'ref': top_container_uri}
+                    else:
+                        # too much depends on top_container_uri for this to continue
+                        continue
 
                 # At this point we have ONE target container, which definitely exists, to merge this group into.
                 top_container_json = client.get(top_container_uri).json()
@@ -119,12 +143,11 @@ if __name__ == '__main__':
                         top_container_json['barcode'] = child_barcode
 
                 # TODO: talk with Maureen about location handling, make sure we really wanna throw away locations when it's harder
-                if not top_container_json.get('top_container_locations', None):
-                    top_container_json['top_container_locations'] = []
+                if not top_container_json.get('container_locations', None):
+                    top_container_json['container_locations'] = []
 
                 # collect as we go!
                 raw_locations = []
-                instances = []
                 for row in group:
                     original_record = client.get(f'repositories/2/top_containers/{row['container_record_id']}').json()
                     raw_locations += original_record.get('container_locations', [])
@@ -140,30 +163,54 @@ if __name__ == '__main__':
                     if len(barcodes) >= 1:
                         if row['container_barcode'] != top_container_json.get('barcode', object()):
                             instance_json['sub_container']['barcode_2'] = row['container_barcode']
-                    instances.append(instance_json)
-                    for ao_json in group_ao_jsons:
-                        del ao_json['lock_version']
-                        ao_json['instances'] = ao_json.get('instances',[]) + instances
 
-                        result = client.post(ao_json['uri'], json=ao_json)
-                        if result.status_code != 200:
-                            log.error('error updating JSON instances')
+                    ao_json = group_ao_jsons.get(row['archival_object_id'], None)
+                    if ao_json:
+                        ao_json = client.get(ao_json['uri']).json() # refresh AO json bc ASpace is horrible
+                        # remove instance for original top_container, add new sub container instance
+                        ao_json['instances'] = [i for i in ao_json.get('instances',[]) if validate_instance(i, original_record['uri'])]
+                        ao_json['instances'].append(instance_json)
+                        if not args.dry_run:
+                            result = client.post(ao_json['uri'], json=ao_json)
+                            if result.status_code != 200:
+                                log.error('error updating JSON instances', error=result.text)
+                            else:
+                                log.info('ao updated with new instance')
+                    else:
+                        log.info('no AO associated with top_container', top_container_uri=original_record['uri'])
+                        # there will be no resource with id 'blargh' so it will 404
+                        resource_uri = f'/repositories/2/resources/{row.get('resource_id', 'blargh')}'
+                        result = client.get(resource_uri)
+                        if result.status_code == 200:
+                            resource_json = result.json()
+                            resource_json['instances'] = [i for i in resource_json.get('instances',[]) if validate_instance(i, original_record['uri'])]
+                            resource_json['instances'].append(instance_json)
+                            if not args.dry_run:
+                                result = client.post(resource_json['uri'], json=resource_json)
+                                if result.status_code != 200:
+                                    log.error('error updating resource')
+                                else:
+                                    log.info('resource updated with new instance')
                         else:
-                            log.info('ao updated with new instances')
-
+                            log.warn('failed to locate and associate instance with resource', resource_id=row.get('resource_id', None), top_container_uri=original_record['uri'])
+                            continue
                 # Deduplicate locations and combine with ones already attached
                 deduped_locations = {loc['ref']:loc for loc in raw_locations}
                 deduped_locations.update({loc['ref']:loc for loc in top_container_json.get('container_locations', [])})
-                top_container_json['container_locations'] = list(deduped_locations.values())
+
+                # top container from earlier is sadly stale here
+                fresh_tc_json = client.get(top_container_json['uri']).json()
+                fresh_tc_json['container_locations'] = list(deduped_locations.values())
+                fresh_tc_json['barcode'] = top_container_json.get('barcode', None)
 
                 if not args.dry_run:
-                    result = client.post(top_container_uri, json=top_container_json)
+                    result = client.post(top_container_uri, json=fresh_tc_json)
                     if result.status_code != 200:
-                        log.error('failed to update container barcode')
+                        log.error('failed to update container barcode and locations', top_container_uri=top_container_uri, status_code=result.status_code, error=result.text, )
                     else:
-                        log.info('updated container barcode', top_container_uri=top_container_uri)
+                        log.info('updated container barcode and locations', top_container_uri=top_container_uri)
 
 
             except Exception as e:
-                log.error('encountered error', error=e)
+                log.error('encountered error', exc_info=e)
                 continue
