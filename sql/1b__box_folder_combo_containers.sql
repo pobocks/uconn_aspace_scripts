@@ -2,7 +2,7 @@
 SELECT main.*,
        GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.id, candidate_ao.id) SEPARATOR ',') AS candidate_container_ids,
        GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.barcode, candidate_ao.barcode) SEPARATOR ',') AS candidate_container_barcodes,
-       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.indicator, candidate_ao.indicator) SEPARATOR ',') AS candidate_indicator
+       GROUP_CONCAT(DISTINCT COALESCE(candidate_direct.indicator, candidate_ao.indicator, SUBSTRING_INDEX(container_indicator, ':', 1)) SEPARATOR ',') AS candidate_indicator
 FROM (SELECT tc.id AS container_record_id,
 
        concat('https://archivessearch.lib.uconn.edu/staff/top_containers/', tc.id) as container_url,
@@ -59,7 +59,7 @@ LEFT JOIN sub_container sc ON sc.id = tclr.sub_container_id
 LEFT JOIN instance i ON i.id = sc.instance_id
 LEFT JOIN archival_object ao ON i.archival_object_id = ao.id
 LEFT JOIN resource r ON i.resource_id = r.id
-WHERE tc.indicator LIKE '%:%'
+WHERE tc.indicator REGEXP '^[[:alnum:]-]+:[[:alnum:]-]+$'
 GROUP BY tc.id) main
 LEFT JOIN resource r ON main.resource_id = r.id
 LEFT JOIN instance i ON r.id = i.resource_id

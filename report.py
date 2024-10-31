@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 from csv import DictWriter
 from argparse import ArgumentParser, FileType
 from asnake.logging import get_logger

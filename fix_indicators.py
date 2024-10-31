@@ -41,15 +41,6 @@ if __name__ == '__main__':
        OR indicator_3 REGEXP '^[[:space:]]|[[:space:]]$'
     ORDER BY tc.id, sc.id;''')
 
-    with conn.cursor() as find_cursor:
-        find_cursor.execute(findem_query)
-        for row in find_cursor.fetchall():
-            top_containers_to_fix.add(row['container_id'])
-            sub_containers_to_fix.add(row['sub_container_id'])
-            instances_to_index.add(row['instance_id'])
-            row['resource_id'] and resources_to_index.add(row['resource_id'])
-            row['archival_object_id'] and aos_to_index.add(row['archival_object_id'])
-
     fix_top_containers = dedent('''\
     UPDATE top_container
     SET indicator = REGEXP_REPLACE(indicator, '^[[:space:]]+|[[:space:]]+$|[[:space:]:]+$', ''),
@@ -63,10 +54,30 @@ if __name__ == '__main__':
         system_mtime = NOW()
     WHERE id IN ''')
 
-    with conn.cursor() as update_cursor:
-        log.info("Fixing top container indicators")
+    fix_bracketed_barcode_normies = r'''UPDATE sub_container
+    SET barcode_2 = regexp_replace(indicator_2, '[^\\[]*\\[ *(?:Barcode:)? *(.*)\\]', '\\1'),
+    indicator_2 = trim(regexp_replace(indicator_2, '([^\\[]*)[\\[].*', '\\1')),
+        system_mtime = NOW()
+    WHERE indicator_2 LIKE '%[%]' AND trim(regexp_replace(indicator_2, '[^\\[]*\\[ *(?:Barcode:)? *(.*)\\]', '\\1')) REGEXP '^[0-9]{14}$' '''
+
+    with conn.cursor() as find_cursor, conn.cursor() as update_cursor:
+        # Do this first because we're gonna have some leftover spacing and colon issues
+        results = 0
+        log.info('fixing sub_containers with bracketed barcodes in indicator')
+        results = update_cursor.execute(fix_bracketed_barcode_normies)
+        conn.commit()
+        log.info("Done", records_updated=results)
+
+        find_cursor.execute(findem_query)
+        for row in find_cursor.fetchall():
+            top_containers_to_fix.add(row['container_id'])
+            sub_containers_to_fix.add(row['sub_container_id'])
+            instances_to_index.add(row['instance_id'])
+            row['resource_id'] and resources_to_index.add(row['resource_id'])
+            row['archival_object_id'] and aos_to_index.add(row['archival_object_id'])
 
         results = 0
+        log.info("Fixing top container indicators")
         for batch in batched(top_containers_to_fix, 100):
             results += update_cursor.execute(fix_top_containers + f"({",".join(map(str, batch))})")
         conn.commit()
@@ -99,4 +110,42 @@ if __name__ == '__main__':
             results += update_cursor.execute(f'UPDATE archival_object SET system_mtime = NOW() WHERE id IN ({",".join(map(str, batch))})')
         conn.commit()
         log.info("Done", records_updated=results)
+
+        log.info("Delete instances, sub_containers, and tclr entries for 'digitized' and 'digitization in process' instances")
+        bad_instance_query = dedent('''\
+        SELECT i.id as instance_id, sc.id as sub_container_id
+        FROM  instance i
+        LEFT JOIN sub_container sc ON sc.instance_id = i.id
+        WHERE i.instance_type_id IN (SELECT ev.id FROM enumeration e,enumeration_value ev
+          WHERE ev.enumeration_id = e.id
+            AND e.name = 'instance_instance_type'
+            AND value IN ('digitized', 'digitization in process'))''')
+        present = find_cursor.execute(bad_instance_query)
+        if not present:
+            log.info('No bad instances present')
+        else:
+            instance_ids, sub_container_ids = [set(coll) for coll in zip(*[[row['instance_id'],row['sub_container_id']] for row in find_cursor.fetchall()])]
+            # strip out Nones
+            for coll in (instance_ids, sub_container_ids,):
+                try: coll.remove(None)
+                except KeyError: pass
+            results = 0
+            log.info('Unlinking bad sub_containers from top_containers')
+            for batch in batched(sub_container_ids, 100):
+                results += update_cursor.execute(f'DELETE FROM top_container_link_rlshp WHERE sub_container_id IN ({",".join(map(str, batch))})')
+            log.info('Done', records_deleted=results)
+
+            results = 0
+            log.info('Deleting bad sub_containers')
+            for batch in batched(sub_container_ids, 100):
+                results += update_cursor.execute(f'DELETE FROM sub_container WHERE id IN ({",".join(map(str, batch))})')
+            log.info('Done', records_deleted=results)
+
+            results = 0
+            log.info('Deleting bad instances')
+            for batch in batched(instance_ids, 100):
+                results += update_cursor.execute(f'DELETE FROM instance WHERE id IN ({",".join(map(str, batch))})')
+            log.info('Done', records_deleted=results)
+            conn.commit()
+
     conn.close()
