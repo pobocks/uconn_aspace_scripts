@@ -22,6 +22,8 @@ ap.add_argument('--reports',
                 choices=choices,
                 help="Which reports to run, leave empty for all")
 ap.add_argument('--dev-fields', '-d', action='store_true', help="Include fields used for development that aren't useful to staff")
+ap.add_argument('--dbname', default="uconn", help="override name of database to query")
+ap.add_argument('--dbuser', default="root", help="override db username")
 
 dev_fields = {'api_url'}
 def remove_dev_fields(row):
@@ -34,7 +36,7 @@ def remove_dev_fields(row):
 
 def main():
     args = ap.parse_args()
-    conn = pymysql.connect(db='uconn', user=input('DB Username?: '), password=getpass("DB Password?: "), cursorclass=pymysql.cursors.DictCursor)
+    conn = pymysql.connect(db=args.dbname, user=args.dbuser, password=getpass("DB Password?: "), cursorclass=pymysql.cursors.DictCursor)
     log = get_logger('uconn_report')
 
     makedirs('./output', exist_ok=True)

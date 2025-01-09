@@ -120,7 +120,7 @@ if __name__ == '__main__':
                                 for cand_id in victim_aos:
                                     result = client.delete(f'/repositories/2/top_containers/{cand_id}')
                                     if result.status_code != 200:
-                                        log.error('deleting surplus container failed', top_container_id=cand_id)
+                                        log.error('deleting surplus container failed', top_container_id=cand_id, error=result.text)
                                     else:
                                         log.info('deleting surplus container', top_container_id=cand_id)
 
