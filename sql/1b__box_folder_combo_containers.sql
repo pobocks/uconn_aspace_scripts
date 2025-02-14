@@ -71,4 +71,5 @@ LEFT JOIN instance i2 ON ao.id = i2.archival_object_id
 LEFT JOIN sub_container sc2 ON sc2.instance_id = i2.id
 LEFT JOIN top_container_link_rlshp tclr2 ON tclr2.sub_container_id = sc2.id
 LEFT JOIN top_container candidate_ao ON candidate_ao.id = tclr2.top_container_id AND candidate_ao.type_id IN (317, 11435) AND candidate_ao.indicator = SUBSTRING_INDEX(main.container_indicator, ':', 1)
-GROUP BY main.container_record_id ASC, candidate_indicator ASC;
+GROUP BY main.container_record_id
+ORDER BY main.container_record_id ASC, candidate_indicator ASC

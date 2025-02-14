@@ -50,6 +50,7 @@ if __name__ == '__main__':
     asnake.logging.setup_logging(config=log_config)
     client = ASnakeClient()
     client.authorize()
+    containers_to_delete = set()
     with args.report as reportfile:
         reader = csv.DictReader(reportfile, dialect='excel-tab')
         for key, group in groupby(sorted(reader, key=sort_fn), key=sort_fn):
@@ -118,12 +119,7 @@ if __name__ == '__main__':
                             else:
                                 log.info('merged multiple candidates into one', candidate_uri=merge_into_ref['ref'], victims=list(victim_aos.keys()))
                                 for cand_id in victim_aos:
-                                    result = client.delete(f'/repositories/2/top_containers/{cand_id}')
-                                    if result.status_code != 200:
-                                        log.error('deleting surplus container failed', top_container_id=cand_id, error=result.text)
-                                    else:
-                                        log.info('deleting surplus container', top_container_id=cand_id)
-
+                                    containers_to_delete.add(f'/repositories/2/top_containers/{cand_id}')
 
                 # one candidate, fetch any existing sub containers and add these guys
                 elif number_of_candidates == 1:
@@ -233,4 +229,14 @@ if __name__ == '__main__':
             except Exception as e:
                 log.error('encountered error', exc_info=e)
                 continue
-    asnake.logging.get_logger('uconn_box_folder_decombinator').info('end processing')
+
+        for container_uri in containers_to_delete:
+            log = asnake.logging.get_logger('uconn_box_folder_decombinator');
+            log.info('deleting container', container_uri=container_uri)
+            if not args.dry_run:
+                result = client.delete(container_uri)
+                if result.status_code != 200:
+                    log.error('deleting surplus container failed', container_uri=container_uri, error=result.text)
+                else:
+                    log.info('deleting surplus container', container_uri=container_uri)
+        asnake.logging.get_logger('uconn_box_folder_decombinator').info('end processing')
