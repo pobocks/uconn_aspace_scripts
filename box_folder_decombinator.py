@@ -164,6 +164,9 @@ if __name__ == '__main__':
                 # collect as we go!
                 raw_locations = []
                 for row in group:
+                    # Once we're done with these we will not want the original top containers
+                    containers_to_delete.add(f'repositories/2/top_containers/{row['container_record_id']}')
+
                     original_record = client.get(f'repositories/2/top_containers/{row['container_record_id']}').json()
                     raw_locations += original_record.get('container_locations', [])
                     instance_json = JM.instance(
