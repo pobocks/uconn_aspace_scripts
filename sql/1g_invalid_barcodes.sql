@@ -11,7 +11,7 @@ SELECT 'top_container' AS record_type,
        tc.barcode AS barcode
 FROM top_container tc
 LEFT JOIN enumeration_value ev ON tc.type_id = ev.id
-WHERE tc.barcode IS NOT NULL AND tc.barcode NOT REGEXP '\d{14}'
+WHERE tc.barcode IS NOT NULL AND tc.barcode NOT REGEXP '^\d{14}$' AND NOT locate('data_value_missing_', tc.barcode) > 0
 UNION
 SELECT 'sub_container' AS record_type,
        tc2.id AS container_record_id,
@@ -35,5 +35,5 @@ LEFT JOIN top_container tc2 ON tc2.id = tclr.top_container_id
 LEFT JOIN enumeration_value ev1 ON tc2.type_id = ev1.id
 LEFT JOIN enumeration_value ev2 ON sc.type_2_id = ev2.id
 LEFT JOIN enumeration_value ev3 ON sc.type_3_id = ev3.id
-WHERE sc.barcode_2 IS NOT NULL AND sc.barcode_2 NOT REGEXP '\d{14}'
+WHERE sc.barcode_2 IS NOT NULL AND sc.barcode_2 NOT REGEXP '^\d{14}$' AND NOT LOCATE('data_value_missing_', sc.barcode_2) > 0
 ORDER BY container_record_id ASC, record_type DESC, sub_container_record_id ASC
