@@ -17,7 +17,7 @@ if __name__ == '__main__':
 
     fixup_sql = dedent('''\
     UPDATE archival_object
-    SET title = regexp_replace(title, ',+\\s*$', '')
+    SET title = regexp_replace(title, ',+\\s*$', ''), system_mtime = NOW()
     WHERE title REGEXP ',+\\s*$' ''')
 
     with conn.cursor() as update_cursor:

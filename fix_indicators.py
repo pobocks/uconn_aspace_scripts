@@ -60,6 +60,10 @@ if __name__ == '__main__':
         system_mtime = NOW()
     WHERE indicator_2 LIKE '%[%]' AND trim(regexp_replace(indicator_2, '[^\\[]*\\[ *(?:Barcode:)? *(.*)\\]', '\\1')) REGEXP '^[0-9]{14}$' '''
 
+    fix_bracketed_actual_barcodes = r'''UPDATE sub_container
+    SET barcode_2 = regexp_replace(barcode_2, '^[[:space:]]*\\[?(\\d{14})\\]?[[:space:]]*$', '\\1'), system_mtime = NOW()
+    WHERE barcode_2 REGEXP '^[[:space:]]*\\[?\\d{14}\\]?[[:space:]]*$' '''
+    
     with conn.cursor() as find_cursor, conn.cursor() as update_cursor:
         # Do this first because we're gonna have some leftover spacing and colon issues
         results = 0
@@ -67,6 +71,12 @@ if __name__ == '__main__':
         results = update_cursor.execute(fix_bracketed_barcode_normies)
         conn.commit()
         log.info("Done", records_updated=results)
+
+        results = 0
+        log.info('fixing sub_containers with bracketed actual barcodes')
+        results = update_cursor.execute(fix_bracketed_actual_barcodes)
+        conn.commit()
+        log.info("Done", records_updated=results, note="always touches all sub_containers")
 
         find_cursor.execute(findem_query)
         for row in find_cursor.fetchall():
@@ -147,5 +157,5 @@ if __name__ == '__main__':
                 results += update_cursor.execute(f'DELETE FROM instance WHERE id IN ({",".join(map(str, batch))})')
             log.info('Done', records_deleted=results)
             conn.commit()
-
+            
     conn.close()
