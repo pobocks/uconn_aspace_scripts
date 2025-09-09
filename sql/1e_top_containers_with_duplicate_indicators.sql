@@ -2,15 +2,15 @@
 SELECT resource_title,
        resource_id,
        indicator,
-       count(top_container_id) AS count_with_this_indicator,
-       group_concat(top_container_id SEPARATOR ', ') AS tc_ids,
-       group_concat(linked_to SEPARATOR ', ') AS linked_tos
+       count(DISTINCT top_container_id) AS count_with_this_indicator,
+       group_concat(DISTINCT top_container_id SEPARATOR ',') AS tc_ids,
+       group_concat(DISTINCT linked_record_uri SEPARATOR ',') AS linked_records
 FROM (
      SELECT DISTINCT r_direct.title AS resource_title,
             r_direct.id AS resource_id,
             tc_direct.indicator AS indicator,
             tc_direct.id AS top_container_id,
-            'resource' AS linked_to
+            concat('/repositories/2/resources/', r_direct.id) AS linked_record_uri
      FROM resource r_direct
      JOIN instance i_d ON i_d.resource_id = r_direct.id
      JOIN sub_container sc_d ON sc_d.instance_id = i_d.id
@@ -21,7 +21,7 @@ FROM (
             r_ao.id AS resource_id,
             tc_ao.indicator AS indicator,
             tc_ao.id AS top_container_id,
-            'archival object' AS linked_to
+            concat('/repositories/2/archival_objects/', ao.id) as linked_record_uri
      FROM resource r_ao
      JOIN archival_object ao ON ao.root_record_id = r_ao.id
      JOIN instance i_ao ON i_ao.archival_object_id = ao.id

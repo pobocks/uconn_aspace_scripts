@@ -72,11 +72,11 @@ if __name__ == '__main__':
         conn.commit()
         log.info("Done", records_updated=results)
 
-        results = 0
-        log.info('fixing sub_containers with bracketed actual barcodes')
-        results = update_cursor.execute(fix_bracketed_actual_barcodes)
-        conn.commit()
-        log.info("Done", records_updated=results, note="always touches all sub_containers")
+        # results = 0
+        # log.info('fixing sub_containers with bracketed actual barcodes')
+        # results = update_cursor.execute(fix_bracketed_actual_barcodes)
+        # conn.commit()
+        # log.info("Done", records_updated=results, note="always touches all sub_containers")
 
         find_cursor.execute(findem_query)
         for row in find_cursor.fetchall():
